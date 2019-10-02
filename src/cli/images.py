@@ -46,7 +46,7 @@ def show_gallery(emoji, name="show-gallery"):
             click.echo("NO IMAGES FOUND")
 
     except IndexError:
-        click.echo(("NO IMAGES FOUND")
+        click.echo("NO IMAGES FOUND")
 
 
 @cli.command()
@@ -59,12 +59,12 @@ def show_mojees(emoji, name="show-mojees"):
 
     try:
 
-        if emoji:
-            headings = [["EMOJI", "KEYWORDS"]]
-            response = requests.get(server_url + "/mojees")
-            response_json = response.json()
-            for mojee in response_json:
-                items.append([mojee["emoji"], mojee["keywords"]])
+        
+        headings = [["EMOJI", "KEYWORDS"]]
+        response = requests.get(server_url + "/mojees")
+        response_json = response.json()
+        for mojee in response_json:
+            items.append([mojee["emoji"], mojee["keywords"]])
 
         if len(items) > 0:
             table.add_rows(headings + items)
