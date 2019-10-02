@@ -19,7 +19,7 @@ WHERE NOT EXISTS (SELECT id FROM exst);
 
 -- images table
 CREATE TABLE IF NOT EXISTS images ( 
-    image_id SERIAL,
+    image_id INTEGER PRIMARY KEY,
     fname TEXT NOT NULL UNIQUE,
     detail TEXT,
     created_on DATETIME NOT NULL DEFAULT (DATETIME(CURRENT_TIMESTAMP, 'LOCALTIME'))
@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS images (
 
 -- many-to-many associations for keywords and images
 CREATE TABLE IF NOT EXISTS keywords_images (
-    id SERIAL,
+    pair_id INTEGER PRIMARY KEY,
     image_id INT NOT NULL REFERENCES images(image_id),
     keyword VARCHAR(100) NOT NULL,
     score INT NOT NULL
@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS keywords_images (
 
 -- many-to-many associations for mojees and keywords
 CREATE TABLE IF NOT EXISTS mojees (
-    id SERIAL,
+    mojee_id INTEGER PRIMARY KEY,
     emoji VARCHAR(100) NOT NULL,
     keyword VARCHAR(100) NOT NULL
 );

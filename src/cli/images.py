@@ -4,7 +4,7 @@ import requests
 import json
 import os.path
 from texttable import Texttable
-
+from PIL import Image
 
 server_url = "http://127.0.0.1:5000"
 
@@ -21,7 +21,7 @@ def show_gallery(emoji, name="show-gallery"):
 
     table = Texttable()
     items = []
-    headings = [["ID", "DESCRIPTION"]]
+    headings = [["ID", "NAME"]]
 
     response = ""
     if emoji:
@@ -39,14 +39,14 @@ def show_gallery(emoji, name="show-gallery"):
 
         if len(items) > 0:
             table.add_rows(headings + items)
-            click.echo(click.style("YOUR IMAGES", bg="black", fg="white"))
+            click.echo("YOUR IMAGES")
             click.echo("\n" + table.draw())
-            click.echo("\nUse command: `view [id]` to view the image.")
+            click.echo("\nUse command: `show-image [ID]` to view the image.")
         else:
-            click.echo(click.style("NO IMAGES FOUND", bg="red", fg="white"))
+            click.echo("NO IMAGES FOUND")
 
     except IndexError:
-        click.echo(click.style("NO IMAGES FOUND FOR YOUR SEARCH", bg="red", fg="white"))
+        click.echo(("NO IMAGES FOUND")
 
 
 @cli.command()
@@ -68,18 +68,18 @@ def show_mojees(emoji, name="show-mojees"):
 
         if len(items) > 0:
             table.add_rows(headings + items)
-            click.echo(click.style("CUSTOM MOJEES", bg="black", fg="white"))
+            click.echo("CUSTOM MOJEES")
             click.echo("\n" + table.draw())
-            click.echo(
-                "\nUse command: `del-mojee [EMOJI] [KEYWORD]` to delete a mojee."
-            )
-            click.echo("\nUse command: `add-mojee [EMOJI] [KEYWORD]` to add a mojee")
-
+            
         else:
-            click.echo(click.style("NO MOJEES FOUND", bg="red", fg="white"))
+            click.echo("NO MOJEES FOUND")
 
     except IndexError:
-        click.echo(click.style("NO MOJEES FOUND", bg="red", fg="white"))
+        click.echo("NO MOJEES FOUND")
+
+    click.echo("Use command: `del-mojee [EMOJI] [KEYWORD]` to delete a mojee.")
+    click.echo("Use command: `add-mojee [EMOJI] [KEYWORD]` to add a mojee")
+
 
 
 @cli.command()
@@ -170,3 +170,14 @@ def delete_image(image_id, name="del-img"):
             click.echo("Uh-oh, something went wrong! Please try again.")
     else:
         click.echo("Cancelled")
+
+
+@cli.command()
+@click.argument("id", type=int)
+def show_image(id, name="show-image"):
+    """Display an image"""
+    image = requests.get(server_url + "/gallery/" + str(id))
+    print(type(image))
+    # im = Image.open(image)  
+    # im.show()
+
