@@ -16,14 +16,14 @@ def cli():
 @click.command()
 @click.option('-e', '--emoji', type=str, help='Filter gallery by emoji')
 @click.option('-k', '--keyword', type=float, help='Filter gallery by keywords')
-def show_gallery(emoji, name='show-gallery'):
+def show_gallery(emoji, keyword, name='show-gallery'):
     """View all pictures matching filter criteria"""
 
     table = Texttable()
     items = []
     headings = [['ID', 'DESCRIPTION']]
 
-    response = requests.get(server_url + "/images")
+    response = requests.get(server_url + "/gallery", params={'emoji': emoji, 'keyword': keyword})
     response_json = response.json()
 
     try:
@@ -94,7 +94,7 @@ def show_mojees(emoji, name='show-mojees'):
             response = requests.get(server_url + "/mojees/all")
             response_json = response.json()
             for mojee in response_json:
-                items.append([mojee['emoji'], mojee['keywords'].join(', '))])
+                items.append([mojee['emoji'], mojee['keywords'].join(', ')])
         
         if len(items) > 0:
             table.add_rows(headings + items)
@@ -119,7 +119,7 @@ def show_mojees(emoji, name='show-mojees'):
 
 @click.command()
 @click.argument('src', type=str)
-def add(src, name='add'):
+def add_image(src, name='add-img'):
     """Adds a new image to the repository"""
 
     while not os.path.isfile(src):
@@ -142,8 +142,30 @@ def add(src, name='add'):
         else:
             click.echo('Uh-oh, something went wrong! Please try again.')
     else:
-        click.echo("Add image cancelled")
+        click.echo("Cancelled")
 
+
+@click.command()
+@click.argument('id', type=str)
+def delete_image(id, name='del-img'):
+    """Deletes an image from the repository"""
+
+    while not os.path.isfile(src):
+        src = click.prompt("Invalid file! Enter the file path of your image: ", type=str)
+
+    confirm = ''
+    while not (confirm == 'Y') and not (confirm == 'N'):
+        confirm = click.prompt('\nDelete ' + id + '?', type=str)
+
+    if confirm == 'Y':
+        delete_json = {'image_id': id}
+        response = requests.post(server_url + "/gallery/" + id + "?", json.dumps(delete_json))
+        if response.ok:
+            click.echo('Image successfully deleted!')
+        else:
+            click.echo('Uh-oh, something went wrong! Please try again.')
+    else:
+        click.echo("Cancelled")
 
 # @click.command()
 # @click.argument('joint', type=int)
@@ -332,9 +354,10 @@ def add(src, name='add'):
 #     click.echo('\n' + table.draw())
                                     
 
-cli.add_command(add)
+cli.add_command(add_image)
+cli.add_comand(delete_image)
 cli.add_command(show_gallery)
-cli.add_commend(show_emojis)
+cli.add_commend(show_mojees)
 
 # cli.add_command(joint_info)
 # cli.add_command(rate)

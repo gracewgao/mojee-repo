@@ -2,17 +2,18 @@ from setuptools import setup
 
 
 setup(
-    name="flick",
+    name="mojee",
     version='0.1',
     py_modules=['images'],
     install_requires=[
         'Click',
         'texttable',
-        'requests'
+        'requests',
+        'google-cloud-vision'
     ],
     entry_points='''
         [console_scripts]
-        flick=images:cli
+        mojee=images:cli
     ''',
 )
 
