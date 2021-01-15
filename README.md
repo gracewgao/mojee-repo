@@ -22,11 +22,11 @@
 ## :beginner: About
 Tired from working a lot on your terminal? Feeling hungry?<br>
 Now you can order a Pizza on the fly, directly through your command line using `flick`!<br>
-`flick` is the combination of a CLI application that interacts with a webserver with information about various pizza joints and their menu. Your Pizza is just a command away.<br>
+`flick` is the combination of a CLI application that interacts with a webserver with information about various pizza images and their menu. Your Pizza is just a command away.<br>
 (Note: This is just a mock-up for now, and doesn't actually order a pizza)
 
 #### Technologies Used
-- [`flask`](https://github.com/pallets/flask): Powers the webserver that serves the joints' info, their data and receives orders
+- [`flask`](https://github.com/pallets/flask): Powers the webserver that serves the images' info, their data and receives orders
 - [`$ click_`](https://github.com/pallets/click): Heart of the Command-Line client that the user interacts with
 
 #### Team
@@ -63,5 +63,5 @@ Type `flick --help` to see a help message, and a list of commands you can use.<b
 - `joint-info`   View information about a specific pizza joint
 - `order`        Place your order for pizza :)
 - `rate`         Send a review for a pizza joint!
-- `show-joints`  View all available pizza joints
+- `show-images`  View all available pizza images
 - `show-menu`    Show menu items for joint specified

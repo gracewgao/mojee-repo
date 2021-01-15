@@ -16,10 +16,9 @@ def create_app():
    db.init_app(app)
 
    with app.app_context():
-       from . import joints
+       from . import images
        from . import order
-       app.register_blueprint(joints.bp)
-       app.register_blueprint(order.bp)
+       app.register_blueprint(images.bp)
        app.add_url_rule('/', endpoint='index')
 
    return app
