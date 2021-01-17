@@ -16,6 +16,10 @@ An image repository that allows you to search for images using emojis!
 - To activate a virtual environment for the project, run `pipenv shell`. After this, you'll be inside the virtual environment.
 - Install the dependencies by running `pipenv install`.
 
+### Setting up Google Cloud Vision
+To identify keywords and match them to emojis, mojee relies on Google Cloud Vision to label images when they are added into the repository.
+In order to use mojee, you must first set up your [Google Cloud Credentials](https://cloud.google.com/vision/docs/setup) and create the `GOOGLE_APPLICATION_CREDENTIALS` environment variable.
+
 ### Running the webserver
 - cd into the webserver directory using `cd src/webserver`.
 - Run the command `flask run`.
