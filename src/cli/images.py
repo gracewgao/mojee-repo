@@ -22,37 +22,17 @@ def show_gallery(emoji, name='show-gallery'):
     items = []
     headings = [['ID', 'DESCRIPTION']]
 
-    response = requests.get(server_url + "/gallery", params={'emoji': emoji, 'keyword': keyword})
+    response = ''
+    if emoji:
+        response = requests.get(server_url + "/gallery/search", json.dumps({'emoji': emoji}))
+    else:
+        response = requests.get(server_url + "/gallery")
     response_json = response.json()
 
     try:
 
-        for detail in response_json:
-            items.append([detail['name'], str(detail['joint_id'])])
-
-        if location:
-            items = []
-            for detail in response_json:
-                if detail['location'].lower() == location.lower():
-                    items.append([detail['name'], str(detail['joint_id'])])
-
-        if min_rating:
-            allowed_ids = []
-            ratings_response = requests.get(server_url + "/images/ratings")
-            ratings_json = ratings_response.json()
-
-            for r in ratings_json:
-                if r['rating'] >= min_rating:
-                    allowed_ids.append(r['joint_id'])
-
-            if len(items) != 0:
-                for i in range(len(items)):
-                    if int(items[i][1]) not in allowed_ids:
-                        items.pop(i)
-            else:
-                for detail in response_json:
-                    if detail['joint_id'] in allowed_ids:
-                        items.append([detail['name'], str(detail['joint_id'])])
+        for image in response_json:
+            items.append([image['image_id'], str(image['detail'])])
 
         if len(items) > 0:
             table.add_rows(headings + items)
@@ -63,7 +43,6 @@ def show_gallery(emoji, name='show-gallery'):
             click.echo(click.style('NO IMAGES FOUND',
                                    bg='red', fg='white')
                        )
-
 
     except IndexError:
         click.echo(click.style('NO IMAGES FOUND FOR YOUR SEARCH',
@@ -82,28 +61,18 @@ def show_mojees(emoji, name='show-mojees'):
     try:
 
         if emoji:
-            headings = [['ID', 'KEYWORD']]
-            # todo: get with emoji?
-            response = requests.get(server_url + "/mojees/" + emoji)
-            response_json = response.json()
-            for mojee in response_json:
-                items.append([mojee['mojee_id'], mojee['keyword']])
-        else:
             headings = [['EMOJI', 'KEYWORDS']]
-            response = requests.get(server_url + "/mojees/all")
+            response = requests.get(server_url + "/mojees")
             response_json = response.json()
             for mojee in response_json:
-                items.append([mojee['emoji'], mojee['keywords'].join(', ')])
+                items.append([mojee['emoji'], mojee['keywords']])
         
         if len(items) > 0:
             table.add_rows(headings + items)
             click.echo(click.style('CUSTOM MOJEES', bg='black', fg='white'))
             click.echo('\n' + table.draw())
-
-            if emoji:
-                click.echo('\nUse command: `delete-mojee [EMOJI] [KEYWORD]` to delete a mojee.')
-            else:
-                click.echo('\nUse command: `show-mojees --emoji [EMOJI]` to edit tags.')
+            click.echo('\nUse command: `del-mojee [EMOJI] [KEYWORD]` to delete a mojee.')
+            click.echo('\nUse command: `add-mojee [EMOJI] [KEYWORD]` to add a mojee')
 
         else:
             click.echo(click.style('NO MOJEES FOUND',
@@ -117,6 +86,32 @@ def show_mojees(emoji, name='show-mojees'):
 
 
 @click.command()
+@click.argument('emoji', type=str)
+@click.argument('keyword', type=str)
+def add_image(emoji, keyword, name='add-mojee'):
+    """Adds a custom mojee tag"""
+    mojee_json = {'emoji': emoji, 'keyword': keyword}
+    response = requests.post(server_url + "/mojees/add", json.dumps(mojee_json))
+    if response.ok:
+        click.echo(emoji + ' successfully added!')
+    else:
+        click.echo('Uh-oh, something went wrong! Please try again.')
+
+
+@click.command()
+@click.argument('emoji', type=str)
+@click.argument('keyword', type=str)
+def add_image(emoji, keyword, name='add-mojee'):
+    """Adds a custom mojee tag"""
+    mojee_json = {'emoji': emoji, 'keyword': keyword}
+    response = requests.post(server_url + "/mojees/delete", json.dumps(mojee_json))
+    if response.ok:
+        click.echo(emoji + ' successfully deleted!')
+    else:
+        click.echo('Uh-oh, something went wrong! Please try again.')
+
+
+@click.command()
 @click.argument('src', type=str)
 def add_image(src, name='add-img'):
     """Adds a new image to the repository"""
@@ -126,16 +121,17 @@ def add_image(src, name='add-img'):
 
     detail = click.prompt("(Optional) Enter a description:", type=str)
    
-    add_json = {}
-    add_json['src'] = src
-    add_json['detail'] = detail
-
+   
     confirm = ''
     while not (confirm == 'Y') and not (confirm == 'N'):
         confirm = click.prompt('\nAdd ' + src + (' with description "' + detail + '"' if detail else '') + '?', type=str)
 
     if confirm == 'Y':
-        response = requests.post(server_url + "/gallery/add", json.dumps(order_json))
+
+        files = {'file': open(src,'rb')}
+        values = {'detail': detail}
+        response = requests.post(server_url + "/gallery/add", files=files, data=values)
+
         if response.ok:
             click.echo('Image successfully added!')
         else:
@@ -145,8 +141,8 @@ def add_image(src, name='add-img'):
 
 
 @click.command()
-@click.argument('id', type=str)
-def delete_image(id, name='del-img'):
+@click.argument('image_id', type=str)
+def delete_image(image_id, name='del-img'):
     """Deletes an image from the repository"""
 
     while not os.path.isfile(src):
@@ -154,11 +150,11 @@ def delete_image(id, name='del-img'):
 
     confirm = ''
     while not (confirm == 'Y') and not (confirm == 'N'):
-        confirm = click.prompt('\nDelete ' + id + '?', type=str)
+        confirm = click.prompt('\nDelete ' + image_id + '?', type=str)
 
     if confirm == 'Y':
-        delete_json = {'image_id': id}
-        response = requests.post(server_url + "/gallery/" + id + "?", json.dumps(delete_json))
+        delete_json = {'image_id': image_id}
+        response = requests.post(server_url + "/gallery/" + image_id + "?", json.dumps(delete_json))
         if response.ok:
             click.echo('Image successfully deleted!')
         else:
@@ -166,38 +162,9 @@ def delete_image(id, name='del-img'):
     else:
         click.echo("Cancelled")
 
-
-# @click.command()
-# @click.option('--veggie', is_flag=True, help='Filter for vegetarian options')
-# @click.argument('joint_id', type=int)
-# def show_menu(joint_id, veggie, name='show-menu'):
-#     """Show menu items for joint specified"""
-#     response = requests.get(server_url + f"/images/{joint_id}/menu")
-#     table = Texttable()
-#     headings = [['Name', 'Toppings', 'S', 'M', 'L']]
-
-#     # Will be true when the user passes a pizza joint ID that doesn't exist
-#     if response.status_code == 404:
-#         print("The pizza joint id that you passed doesn't exist")
-#         exit(1)
-
-#     response_list = response.json()
-#     table_rows = []
-#     for res in response_list:
-#         S = '$' + format(res['prices'][0].get('M'), '.2f')
-#         M = '$' + format(res['prices'][0].get('M'), '.2f')
-#         L = '$' + format(res['prices'][0].get('L'), '.2f')
-#         if veggie:
-#             if res['vegetarian']:
-#                 table_rows.append([res['name'], res['toppings'], S, M, L])
-#         else:
-#             table_rows.append([res['name'], res['toppings'], S, M, L])
-
-#     table.add_rows(headings + table_rows)
-#     click.echo('\n' + table.draw())
-                                    
-
 cli.add_command(add_image)
 cli.add_comand(delete_image)
+cli.add_comand(show_mojees)
 cli.add_command(show_gallery)
-cli.add_commend(show_mojees)
+cli.add_comand(add_mojee)
+cli.add_comand(del_mojee)

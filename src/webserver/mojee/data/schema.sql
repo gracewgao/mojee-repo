@@ -39,7 +39,7 @@ CREATE TABLE IF NOT EXISTS keywords_images (
 
 
 -- many-to-many associations for mojees and keywords
-CREATE TABLE IF NOT EXISTS mojees_keywords (
+CREATE TABLE IF NOT EXISTS mojees (
     id SERIAL,
     emoji VARCHAR(100) NOT NULL,
     keyword VARCHAR(100) NOT NULL,

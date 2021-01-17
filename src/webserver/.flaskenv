@@ -1,1 +1,1 @@
-FLASK_APP=flick
+FLASK_APP=mojee

@@ -21,9 +21,10 @@ def check_extension(extension):
 
 @bp.route('/gallery')
 def gallery():
+
     db = get_db()
     images = db.execute(
-        'SELECT image_id, description FROM images'
+        'SELECT image_id, detail FROM images'
     ).fetchall()
 
     if not images:
@@ -33,7 +34,7 @@ def gallery():
         for i in images:
             images_json.append(
                 {
-                    'image_id': i[0], 'desc': i[1]
+                    'image_id': i[0], 'detail': i[1]
                  }
             )
 
@@ -55,21 +56,23 @@ def add_pic(filename):
 @bp.route('/gallery/add', methods={'POST'})
 def add_image():
     image_file = request.files['file']
-        try:
-            extension = image_file.filename.rsplit('.', 1)[1].lower()
-        except IndexError as err:
-            app.logger.info(err)
-            abort(404)
-        if image_file and check_extension(extension):
-            # salt and hash the file contents
-            filename = md5(image_file.read()
-                          ).hexdigest() + str(round(time.time() * 1000)) + '.' + extension
-            image_file.seek(0)
-            image_file.save(os.path.join(app.config['UPLOAD_DIR'], filename))
-            add_pic(filename)
-            return redirect(url_for('show_pic', filename=filename))
-        else:
-            abort(404)
+    detail = json.loads(request.args.data('data', ''))
+
+    try:
+        extension = image_file.filename.rsplit('.', 1)[1].lower()
+    except IndexError as err:
+        app.logger.info(err)
+        abort(404)
+    if image_file and check_extension(extension):
+        # salt and hash the file contents
+        filename = md5(image_file.read()
+                        ).hexdigest() + str(round(time.time() * 1000)) + '.' + extension
+        image_file.seek(0)
+        image_file.save(os.path.join(app.config['UPLOAD_DIR'], filename))
+        add_pic(filename)
+        return redirect(url_for('show_pic', filename=filename))
+    else:
+        abort(404)
 
 
 @bp.route('/gallery/search', methods={'GET'})
@@ -89,7 +92,7 @@ def search():
     for i in images:
         filename = i[1]
         image_keywords = db.execute(
-            'SELECT keyword, score FROM keywords_images WHERE image_id = (?)', i[0])
+            'SELECT keyword, score FROM keywords_images WHERE image_id = (?)', i[0]
         ).fetchall()
 
         labels = {}
@@ -109,7 +112,7 @@ def search():
 
 
 @bp.route('/mojees/add', methods=['POST'])
-def add_emoji():
+def add_mojee():
     db = get_db()
 
     json = request.get_json(force=True)
@@ -144,18 +147,21 @@ def delete_mojee():
     return jsonify({"status": "success"})
 
 
-# @bp.route('/mojees/all')
-# def show_mojees():
-#     db = get_db()
-#     mojees = db.execute(
-#         'SELECT mojee_id, emoji, keyword FROM mojees GROUP BY emoji'
-#     ).fetchall()
+@bp.route('/mojees', methods=['GET'])
+def show_mojees():
+    db = get_db()
 
-#     mojees_json = []
-#     for mojee in mojees:
-#         mojees_json.append({'mojee_id': mojee[0], 'keywords': mojee[1]})
+    mojees = db.execute(
+            'SELECT STR_AGG(keyword) FROM mojees GROUP BY emoji'
+        ).fetchall()
 
-#     return jsonify(ratings_json)
+    mojees_json = []
+    for m in mojees:
+        mojees_json.append(
+            { 'emoji': m[0], 'keywords': m[1] }
+        )
+
+    return jsonify(mojees)
 
 
 @bp.route('/gallery/<int:image_id>/show')
@@ -194,7 +200,7 @@ def delete_image(image_id):
     
     if found:
         db.execute(
-            'DELETE FROM images WHERE image_id == (?)'
+            'DELETE FROM images WHERE image_id == (?)',
             (image_id,)
         )
         db.commit()

@@ -8,6 +8,8 @@ flask = "==1.1.2"
 click = "*"
 python-dotenv = "*"
 texttable = "*"
+pillow = "*"
+google-cloud-vision = "*"
 
 [dev-packages]
 
