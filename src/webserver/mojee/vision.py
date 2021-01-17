@@ -12,48 +12,52 @@ emojis = dict(file_items)
 
 client = vision.ImageAnnotatorClient()
 
-def get_labels(image_uri):
-    
-    image = vision.Image()
-    image.source.image_uri = image_uri
+
+def vision_label(filename):
+
+    file_name = os.path.join(
+        os.path.dirname(__file__),
+        filename)
+
+    with io.open(file_name, 'rb') as image_file:
+        content = image_file.read()
+
+    image = types.Image(content=content)
+    response = client.label_detection(image=image)
+
     labels = {}
 
-    response = client.label_detection(image=image)
-    
     for label in response.label_annotations:
-        labels[label.description] = label.score
+        # label confidence score out of 100
+        labels[label.description] = label.score * 100
     
     return labels
 
-def to_emoji(search_uri):
-    labels = get_labels(search_uri)
+
+def vision_match(labels, emoji):
 
     for label, score in labels.items():
-        label_words = label.split()
-        for e, keywords in emojis.items():
-            for word in label_words:
-                if word.lower() in keywords:
-                    print(e, word.lower())
+        keywords = emojis[emoji]
+        # if there is a match
+        if label.lower() in keywords and score > 50:
+            return True
 
-def find_emoji(search):
-    print (i for i in e[search])
+    return False
 
 
-test_uri = 'gs://cloud-samples-data/vision/using_curl/shanghai.jpeg'
-test_uri2 = 'https://hips.hearstapps.com/hmg-prod.s3.amazonaws.com/images/gettyimages-688899881-1519413300.jpg'
-test_labels = get_labels(test_uri2)
-for label, score in test_labels.items():
-        label_words = label.split()
-        for e, keywords in emojis.items():
-            for word in label_words:
-                if word.lower() in keywords:
-                    print(e, word.lower())
+# test_uri = 'gs://cloud-samples-data/vision/using_curl/shanghai.jpeg'
+# test_uri2 = 'https://hips.hearstapps.com/hmg-prod.s3.amazonaws.com/images/gettyimages-688899881-1519413300.jpg'
+# test_labels = get_labels(test_uri2)
+# for label, score in test_labels.items():
+#         label_words = label.split()
+#         for e, keywords in emojis.items():
+#             for word in label_words:
+#                 if word.lower() in keywords:
+#                     print(e, word.lower())
 
 # print('Labels (and confidence score):')
 # print('=' * 30)
 # for label, confidence in test_labels.items():
 #     print(label, '(%.2f%%)' % (confidence*100.))
-
-to_emoji(test_uri)
 
 #test_search = input('Enter an emoji to search with:')

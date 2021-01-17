@@ -1,11 +1,23 @@
 from flask import (
-    Blueprint, request, redirect, url_for, jsonify
+    Blueprint, request, redirect, url_for, jsonify, g, abort, send_from_directory
 )
 from werkzeug.exceptions import abort
 from .db import get_db
 
+import time
+import os
+from hashlib import md5
+from PIL import Image
+
+from werkzeug.utils import secure_filename
+from . import app
+
+from .vision import *
+
 bp = Blueprint('images', __name__)
 
+def check_extension(extension):
+    return extension in app.config['ALLOWED_EXTENSIONS']
 
 @bp.route('/gallery')
 def gallery():
@@ -28,25 +40,70 @@ def gallery():
     return jsonify(images_json)
 
 
+def add_pic(filename):
+    labels = vision_label(filename)
+
+    g.db.execute('INSERT INTO images (filename) VALUES (?) RETURNING image_id', [filename])
+    image_id = g.db.execute('SELECT last_insert_rowid()')
+
+    for label, score in labels.items():
+        g.db.execute('INSERT INTO keywords_images (image_id, keyword, score) VALUES (?, ?, ?)', (image_id, label, score))
+    
+    g.db.commit()
+
+
+@bp.route('/gallery/add', methods={'POST'})
+def add_image():
+    image_file = request.files['file']
+        try:
+            extension = image_file.filename.rsplit('.', 1)[1].lower()
+        except IndexError as err:
+            app.logger.info(err)
+            abort(404)
+        if image_file and check_extension(extension):
+            # salt and hash the file contents
+            filename = md5(image_file.read()
+                          ).hexdigest() + str(round(time.time() * 1000)) + '.' + extension
+            image_file.seek(0)
+            image_file.save(os.path.join(app.config['UPLOAD_DIR'], filename))
+            add_pic(filename)
+            return redirect(url_for('show_pic', filename=filename))
+        else:
+            abort(404)
+
+
 @bp.route('/gallery/search', methods={'GET'})
 def search():
 
     db = get_db()
     images = db.execute(
-        'SELECT image_id, description FROM images'
+        'SELECT image_id, filename, detail FROM images'
     ).fetchall()
 
     json = request.get_json(force=True)
     emoji = json['emoji']
-    keywords = json['keyword']
-    
-    images = db.execute(
-        'SELECT image_id, description FROM images'
-    ).fetchall()
-    
+
     images_json = []
+
+    # attempts to match keywords of image with emoji
     for i in images:
-        images_json.append({'image_id': i[0], 'desc': i[1]})
+        filename = i[1]
+        image_keywords = db.execute(
+            'SELECT keyword, score FROM keywords_images WHERE image_id = (?)', i[0])
+        ).fetchall()
+
+        labels = {}
+        for k in image_keywords:
+            word = k[0]
+            score = k[1]
+            if not labels[word]:
+                labels[word] = score
+            else:
+                labels[word] = max(labels[word], score)
+
+        match = vision_match(labels, emoji)
+        if match:
+            images_json.append({'image_id': i[0], 'filename': i[1], 'detail': i[2]})
 
     return jsonify(images_json)
 
@@ -74,35 +131,35 @@ def delete_mojee():
     db = get_db()
 
     json = request.get_json(force=True)
-    mojee_id = json['mojee_id']
+    emoji = json['emoji']
     keyword = json['keyword']
 
     db.execute(
         'DELETE from mojees WHERE'
-        ' mojee_id == (?)',
-        (mojee_id)
+        ' emoji == (?) AND keyword == (?)',
+        (emoji, keyword)
     )
     db.commit()
 
     return jsonify({"status": "success"})
 
 
-@bp.route('/mojees/all')
-def ratings():
-    db = get_db()
-    mojees = db.execute(
-        'SELECT mojee_id, keyword FROM mojees GROUP BY mojee_id'
-    ).fetchall()
+# @bp.route('/mojees/all')
+# def show_mojees():
+#     db = get_db()
+#     mojees = db.execute(
+#         'SELECT mojee_id, emoji, keyword FROM mojees GROUP BY emoji'
+#     ).fetchall()
 
-    mojees_json = []
-    for mojee in mojees:
-        mojees_json.append({'mojee_id': mojee[0], 'keywords': mojee[1]})
+#     mojees_json = []
+#     for mojee in mojees:
+#         mojees_json.append({'mojee_id': mojee[0], 'keywords': mojee[1]})
 
-    return jsonify(ratings_json)
+#     return jsonify(ratings_json)
 
 
 @bp.route('/gallery/<int:image_id>/show')
-def show(image_id):
+def show_image(image_id):
 
     db = get_db()
 
@@ -118,10 +175,11 @@ def show(image_id):
             'SELECT path FROM images WHERE image_id = ?', (image_id,)
         ).fetchone()
 
-        return jsonify(path)
+        return path
     
     else:
         abort(404, "Image with ID {0} doesn't exist.".format(image_id))
+
 
 @bp.route('/gallery/<int:image_id>/delete')
 def delete_image(image_id):
@@ -145,78 +203,35 @@ def delete_image(image_id):
     else:
         abort(404, "Image with ID {0} doesn't exist.".format(image_id))
 
-
-@bp.route('/images/<int:joint_id>/menu')
-def menu(joint_id):
-    db = get_db()
-
-    ids = db.execute('SELECT joint_id from images').fetchall()
-    found = False
-    for id in ids:
-        if joint_id == id[0]:
-            found = True
-            break
-
-    if found:
-        pizzas = db.execute(
-            'SELECT m.pizza_id, name, toppings, vegetarian, p.small, p.medium, p.large'
-            ' FROM pizzas m JOIN prices p ON m.pizza_id = p.pizza_id'
-            ' WHERE m.joint_id = ?',
-            (joint_id,)
-        ).fetchall()
-
-        pizzas_json = []
-        for p in pizzas:
-            prices = []
-            prices.append(
-                {'S': p[4], 'M': p[5], 'L': p[6]}
-            )
-            pizzas_json.append(
-                {
-                    'pizza_id': p[0], 'name': p[1], 'toppings': p[2],
-                    'vegetarian': bool(p[3]), 'prices': prices
-                }
-            )
-
-        return jsonify(pizzas_json)
-
-    else:
-        abort(404, "Joint id {0} doesn't exist.".format(joint_id))
+    
+# def get_last_pics():
+#     cur = g.db.execute('select filename from pics order by created_on desc limit 25')
+#     filenames = [row[0] for row in cur.fetchall()]
+#     return filenames
 
 
-@bp.route('/images/<int:joint_id>/rate', methods=['POST'])
-def rate(joint_id):
-    db = get_db()
+@app.before_request
+def before_request():
+    g.db = connect_db()
 
-    ids = db.execute('SELECT joint_id from images').fetchall()
-    found = False
-    for id in ids:
-        if joint_id == id[0]:
-            found = True
-            break
 
-    if found:    
-        json = request.get_json(force=True)
-        rating = json['rating']
-        review = json['review']
-        joint_id = json['joint_id']
+@app.teardown_request
+def teardown_request(err):
+    if err:
+        app.logger.info(err.message)
+    database = getattr(g, 'db', None)
+    if database is not None:
+        database.close()
 
-        db.execute(
-            'INSERT INTO ratings'
-            ' VALUES (?, ?)',
-            (joint_id, rating)
-        )
-        db.commit()
 
-        if review is not None:
-            db.execute(
-                'INSERT INTO reviews'
-                ' VALUES (?, ?)',
-                (joint_id, review)
-            )
-            db.commit()
-        return jsonify({"status": "success"})
+@app.errorhandler(404)
+def image_not_found(err):
+    if err:
+        app.logger.info(err)
+    return {'status': 404}
 
-    else:
-        abort(404, "Joint id {0} doesn't exist.".format(joint_id))
+
+@app.route('/gallery/<filename>')
+def return_pic(filename):
+    return send_from_directory(app.config['UPLOAD_DIR'], secure_filename(filename))
 
