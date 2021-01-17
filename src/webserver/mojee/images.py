@@ -1,5 +1,12 @@
 from flask import (
-    Blueprint, request, redirect, url_for, jsonify, g, abort, send_from_directory
+    Blueprint,
+    request,
+    redirect,
+    url_for,
+    jsonify,
+    g,
+    abort,
+    send_from_directory,
 )
 from werkzeug.exceptions import abort
 from .db import get_db
@@ -10,21 +17,22 @@ from hashlib import md5
 from PIL import Image
 
 from werkzeug.utils import secure_filename
-from . import app
 
 from .vision import *
 
-bp = Blueprint('images', __name__)
+bp = Blueprint("images", __name__)
+
 
 def check_extension(extension):
-    return extension in app.config['ALLOWED_EXTENSIONS']
+    return extension in current_app.config["ALLOWED_EXTENSIONS"]
 
-@bp.route('/gallery')
+
+@bp.route("/gallery")
 def gallery():
 
     db = get_db()
     images = db.execute(
-        'SELECT image_id, detail FROM images'
+        "SELECT image_id, detail FROM images ORDER BY created_on desc"
     ).fetchall()
 
     if not images:
@@ -32,11 +40,7 @@ def gallery():
     else:
         images_json = []
         for i in images:
-            images_json.append(
-                {
-                    'image_id': i[0], 'detail': i[1]
-                 }
-            )
+            images_json.append({"image_id": i[0], "detail": i[1]})
 
     return jsonify(images_json)
 
@@ -44,47 +48,54 @@ def gallery():
 def add_pic(filename):
     labels = vision_label(filename)
 
-    g.db.execute('INSERT INTO images (filename) VALUES (?) RETURNING image_id', [filename])
-    image_id = g.db.execute('SELECT last_insert_rowid()')
+    g.db.execute(
+        "INSERT INTO images (filename) VALUES (?) RETURNING image_id", [filename]
+    )
+    image_id = g.db.execute("SELECT last_insert_rowid()")
 
     for label, score in labels.items():
-        g.db.execute('INSERT INTO keywords_images (image_id, keyword, score) VALUES (?, ?, ?)', (image_id, label, score))
-    
+        g.db.execute(
+            "INSERT INTO keywords_images (image_id, keyword, score) VALUES (?, ?, ?)",
+            (image_id, label, score),
+        )
+
     g.db.commit()
 
 
-@bp.route('/gallery/add', methods={'POST'})
+@bp.route("/gallery/add", methods={"POST"})
 def add_image():
-    image_file = request.files['file']
-    detail = json.loads(request.args.data('data', ''))
+    image_file = request.files["file"]
+    detail = json.loads(request.args.data("data", ""))
 
     try:
-        extension = image_file.filename.rsplit('.', 1)[1].lower()
+        extension = image_file.filename.rsplit(".", 1)[1].lower()
     except IndexError as err:
-        app.logger.info(err)
+        current_app.logger.info(err)
         abort(404)
     if image_file and check_extension(extension):
         # salt and hash the file contents
-        filename = md5(image_file.read()
-                        ).hexdigest() + str(round(time.time() * 1000)) + '.' + extension
+        filename = (
+            md5(image_file.read()).hexdigest()
+            + str(round(time.time() * 1000))
+            + "."
+            + extension
+        )
         image_file.seek(0)
-        image_file.save(os.path.join(app.config['UPLOAD_DIR'], filename))
+        image_file.save(os.path.join(current_app.config["UPLOAD_DIR"], filename))
         add_pic(filename)
-        return redirect(url_for('show_pic', filename=filename))
+        return redirect(url_for("show_pic", filename=filename))
     else:
         abort(404)
 
 
-@bp.route('/gallery/search', methods={'GET'})
+@bp.route("/gallery/search", methods={"GET"})
 def search():
 
     db = get_db()
-    images = db.execute(
-        'SELECT image_id, filename, detail FROM images'
-    ).fetchall()
+    images = db.execute("SELECT image_id, filename, detail FROM images").fetchall()
 
     json = request.get_json(force=True)
-    emoji = json['emoji']
+    emoji = json["emoji"]
 
     images_json = []
 
@@ -92,7 +103,7 @@ def search():
     for i in images:
         filename = i[1]
         image_keywords = db.execute(
-            'SELECT keyword, score FROM keywords_images WHERE image_id = (?)', i[0]
+            "SELECT keyword, score FROM keywords_images WHERE image_id = (?)", i[0]
         ).fetchall()
 
         labels = {}
@@ -106,70 +117,60 @@ def search():
 
         match = vision_match(labels, emoji)
         if match:
-            images_json.append({'image_id': i[0], 'filename': i[1], 'detail': i[2]})
+            images_json.append({"image_id": i[0], "filename": i[1], "detail": i[2]})
 
     return jsonify(images_json)
 
 
-@bp.route('/mojees/add', methods=['POST'])
+@bp.route("/mojees/add", methods=["POST"])
 def add_mojee():
     db = get_db()
 
     json = request.get_json(force=True)
-    emoji = json['emoji']
-    keyword = json['keyword']
+    emoji = json["emoji"]
+    keyword = json["keyword"]
 
-    db.execute(
-        'INSERT INTO mojees'
-        ' VALUES (?, ?)',
-        (emoji, keyword)
-    )
+    db.execute("INSERT INTO mojees" " VALUES (?, ?)", (emoji, keyword))
     db.commit()
 
     return jsonify({"status": "success"})
 
 
-@bp.route('/mojees/delete', methods=['POST'])
+@bp.route("/mojees/delete", methods=["POST"])
 def delete_mojee():
     db = get_db()
 
     json = request.get_json(force=True)
-    emoji = json['emoji']
-    keyword = json['keyword']
+    emoji = json["emoji"]
+    keyword = json["keyword"]
 
     db.execute(
-        'DELETE from mojees WHERE'
-        ' emoji == (?) AND keyword == (?)',
-        (emoji, keyword)
+        "DELETE from mojees WHERE" " emoji == (?) AND keyword == (?)", (emoji, keyword)
     )
     db.commit()
 
     return jsonify({"status": "success"})
 
 
-@bp.route('/mojees', methods=['GET'])
+@bp.route("/mojees", methods=["GET"])
 def show_mojees():
     db = get_db()
 
-    mojees = db.execute(
-            'SELECT STR_AGG(keyword) FROM mojees GROUP BY emoji'
-        ).fetchall()
+    mojees = db.execute("SELECT STR_AGG(keyword) FROM mojees GROUP BY emoji").fetchall()
 
     mojees_json = []
     for m in mojees:
-        mojees_json.append(
-            { 'emoji': m[0], 'keywords': m[1] }
-        )
+        mojees_json.append({"emoji": m[0], "keywords": m[1]})
 
     return jsonify(mojees)
 
 
-@bp.route('/gallery/<int:image_id>/show')
+@bp.route("/gallery/<int:image_id>/show")
 def show_image(image_id):
 
     db = get_db()
 
-    ids = db.execute('SELECT image_id from images').fetchall()
+    ids = db.execute("SELECT image_id from images").fetchall()
     found = False
     for id in ids:
         if joint_id == id[0]:
@@ -178,66 +179,37 @@ def show_image(image_id):
 
     if found:
         path = db.execute(
-            'SELECT path FROM images WHERE image_id = ?', (image_id,)
+            "SELECT path FROM images WHERE image_id = ?", (image_id,)
         ).fetchone()
 
         return path
-    
+
     else:
         abort(404, "Image with ID {0} doesn't exist.".format(image_id))
 
 
-@bp.route('/gallery/<int:image_id>/delete')
+@bp.route("/gallery/<int:image_id>/delete")
 def delete_image(image_id):
     db = get_db()
 
-    ids = db.execute('SELECT image_id from images').fetchall()
+    ids = db.execute("SELECT image_id from images").fetchall()
     found = False
     for id in ids:
         if joint_id == id[0]:
             found = True
             break
-    
+
     if found:
-        db.execute(
-            'DELETE FROM images WHERE image_id == (?)',
-            (image_id,)
-        )
+        db.execute("DELETE FROM images WHERE image_id == (?)", (image_id,))
         db.commit()
         return jsonify({"status": "success"})
 
     else:
         abort(404, "Image with ID {0} doesn't exist.".format(image_id))
 
-    
-# def get_last_pics():
-#     cur = g.db.execute('select filename from pics order by created_on desc limit 25')
-#     filenames = [row[0] for row in cur.fetchall()]
-#     return filenames
 
-
-@app.before_request
-def before_request():
-    g.db = connect_db()
-
-
-@app.teardown_request
-def teardown_request(err):
-    if err:
-        app.logger.info(err.message)
-    database = getattr(g, 'db', None)
-    if database is not None:
-        database.close()
-
-
-@app.errorhandler(404)
-def image_not_found(err):
-    if err:
-        app.logger.info(err)
-    return {'status': 404}
-
-
-@app.route('/gallery/<filename>')
+@bp.route("/gallery/<filename>")
 def return_pic(filename):
-    return send_from_directory(app.config['UPLOAD_DIR'], secure_filename(filename))
-
+    return send_from_directory(
+        current_app.config["UPLOAD_DIR"], secure_filename(filename)
+    )

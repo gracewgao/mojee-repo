@@ -23,3 +23,7 @@ ENV/
 env.bak/
 venv.bak/
 pythonenv*
+
+# other
+.vscode
+mojee.egg-info/
