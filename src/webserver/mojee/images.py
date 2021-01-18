@@ -7,6 +7,7 @@ from flask import (
     g,
     abort,
     send_from_directory,
+    current_app
 )
 from werkzeug.exceptions import abort
 from .db import get_db
@@ -30,8 +31,7 @@ def check_extension(extension):
 @bp.route("/gallery")
 def gallery():
 
-    db = get_db()
-    images = db.execute(
+    images = g.db.execute(
         "SELECT image_id, detail FROM images ORDER BY created_on desc"
     ).fetchall()
 
@@ -45,18 +45,18 @@ def gallery():
     return jsonify(images_json)
 
 
-def add_pic(filename):
+def add_pic(filename, detail):
     labels = vision_label(filename)
+    print(type(filename))
 
-    g.db.execute(
-        "INSERT INTO images (filename) VALUES (?) RETURNING image_id", [filename]
-    )
-    image_id = g.db.execute("SELECT last_insert_rowid()")
+    cursor = g.db.cursor()
+    images = cursor.execute("INSERT INTO images (detail, fname) VALUES (?, ?)", (detail, filename,))
+    image_id = cursor.lastrowid
 
     for label, score in labels.items():
         g.db.execute(
             "INSERT INTO keywords_images (image_id, keyword, score) VALUES (?, ?, ?)",
-            (image_id, label, score),
+            (int(image_id), str(label), int(score),)
         )
 
     g.db.commit()
@@ -64,11 +64,13 @@ def add_pic(filename):
 
 @bp.route("/gallery/add", methods={"POST"})
 def add_image():
+    
     image_file = request.files["file"]
-    detail = json.loads(request.args.data("data", ""))
+    # detail = request.get_json(force=True).get("detail")
 
     try:
-        extension = image_file.filename.rsplit(".", 1)[1].lower()
+        names = image_file.filename.rsplit(".", 1)
+        extension = names[1].lower()
     except IndexError as err:
         current_app.logger.info(err)
         abort(404)
@@ -82,17 +84,16 @@ def add_image():
         )
         image_file.seek(0)
         image_file.save(os.path.join(current_app.config["UPLOAD_DIR"], filename))
-        add_pic(filename)
-        return redirect(url_for("show_pic", filename=filename))
+        add_pic(filename, names[0])
     else:
         abort(404)
+    return 'ok'
 
 
 @bp.route("/gallery/search", methods={"GET"})
 def search():
 
-    db = get_db()
-    images = db.execute("SELECT image_id, filename, detail FROM images").fetchall()
+    images = g.db.execute("SELECT image_id, filename, detail FROM images").fetchall()
 
     json = request.get_json(force=True)
     emoji = json["emoji"]
@@ -102,7 +103,7 @@ def search():
     # attempts to match keywords of image with emoji
     for i in images:
         filename = i[1]
-        image_keywords = db.execute(
+        image_keywords = g.db.execute(
             "SELECT keyword, score FROM keywords_images WHERE image_id = (?)", i[0]
         ).fetchall()
 
@@ -124,39 +125,36 @@ def search():
 
 @bp.route("/mojees/add", methods=["POST"])
 def add_mojee():
-    db = get_db()
 
     json = request.get_json(force=True)
     emoji = json["emoji"]
     keyword = json["keyword"]
 
-    db.execute("INSERT INTO mojees" " VALUES (?, ?)", (emoji, keyword))
-    db.commit()
+    g.db.execute("INSERT INTO mojees" " VALUES (?, ?)", (emoji, keyword))
+    g.db.commit()
 
     return jsonify({"status": "success"})
 
 
 @bp.route("/mojees/delete", methods=["POST"])
 def delete_mojee():
-    db = get_db()
 
     json = request.get_json(force=True)
     emoji = json["emoji"]
     keyword = json["keyword"]
 
-    db.execute(
+    g.db.execute(
         "DELETE from mojees WHERE" " emoji == (?) AND keyword == (?)", (emoji, keyword)
     )
-    db.commit()
+    g.db.commit()
 
     return jsonify({"status": "success"})
 
 
 @bp.route("/mojees", methods=["GET"])
 def show_mojees():
-    db = get_db()
 
-    mojees = db.execute("SELECT STR_AGG(keyword) FROM mojees GROUP BY emoji").fetchall()
+    mojees = g.db.execute("SELECT STR_AGG(keyword) FROM mojees GROUP BY emoji").fetchall()
 
     mojees_json = []
     for m in mojees:
@@ -168,9 +166,7 @@ def show_mojees():
 @bp.route("/gallery/<int:image_id>/show")
 def show_image(image_id):
 
-    db = get_db()
-
-    ids = db.execute("SELECT image_id from images").fetchall()
+    ids = g.db.execute("SELECT image_id from images").fetchall()
     found = False
     for id in ids:
         if joint_id == id[0]:
@@ -178,7 +174,7 @@ def show_image(image_id):
             break
 
     if found:
-        path = db.execute(
+        path = g.db.execute(
             "SELECT path FROM images WHERE image_id = ?", (image_id,)
         ).fetchone()
 
@@ -190,9 +186,8 @@ def show_image(image_id):
 
 @bp.route("/gallery/<int:image_id>/delete")
 def delete_image(image_id):
-    db = get_db()
 
-    ids = db.execute("SELECT image_id from images").fetchall()
+    ids = g.db.execute("SELECT image_id from images").fetchall()
     found = False
     for id in ids:
         if joint_id == id[0]:
@@ -200,8 +195,8 @@ def delete_image(image_id):
             break
 
     if found:
-        db.execute("DELETE FROM images WHERE image_id == (?)", (image_id,))
-        db.commit()
+        g.db.execute("DELETE FROM images WHERE image_id == (?)", (image_id,))
+        g.db.commit()
         return jsonify({"status": "success"})
 
     else:

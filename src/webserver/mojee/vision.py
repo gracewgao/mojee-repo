@@ -1,7 +1,9 @@
 from __future__ import print_function
 from google.cloud import vision
 import json
-
+import os
+import io
+from flask import current_app
 
 f = open("mojee/emoji-list.json")
 file_data = json.load(f)
@@ -15,7 +17,7 @@ client = vision.ImageAnnotatorClient()
 
 def vision_label(filename):
 
-    file_name = os.path.join(os.path.dirname(__file__), filename)
+    file_name = os.path.join(os.path.join(current_app.config["UPLOAD_DIR"], filename))
 
     with io.open(file_name, "rb") as image_file:
         content = image_file.read()

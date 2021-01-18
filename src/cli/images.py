@@ -14,7 +14,7 @@ def cli():
     pass
 
 
-@click.command()
+@cli.command()
 @click.option("-e", "--emoji", type=str, help="Filter gallery by emoji")
 def show_gallery(emoji, name="show-gallery"):
     """View all pictures matching filter criteria"""
@@ -49,7 +49,7 @@ def show_gallery(emoji, name="show-gallery"):
         click.echo(click.style("NO IMAGES FOUND FOR YOUR SEARCH", bg="red", fg="white"))
 
 
-@click.command()
+@cli.command()
 @click.option("-e", "--emoji", type=str, help="See tags for a specific emoji")
 def show_mojees(emoji, name="show-mojees"):
     """View custom mojee tags"""
@@ -82,7 +82,7 @@ def show_mojees(emoji, name="show-mojees"):
         click.echo(click.style("NO MOJEES FOUND", bg="red", fg="white"))
 
 
-@click.command()
+@cli.command()
 @click.argument("emoji", type=str)
 @click.argument("keyword", type=str)
 def add_mojee(emoji, keyword, name="add-mojee"):
@@ -95,7 +95,7 @@ def add_mojee(emoji, keyword, name="add-mojee"):
         click.echo("Uh-oh, something went wrong! Please try again.")
 
 
-@click.command()
+@cli.command()
 @click.argument("emoji", type=str)
 @click.argument("keyword", type=str)
 def delete_mojee(emoji, keyword, name="add-mojee"):
@@ -108,33 +108,34 @@ def delete_mojee(emoji, keyword, name="add-mojee"):
         click.echo("Uh-oh, something went wrong! Please try again.")
 
 
-@click.command()
+@cli.command()
 @click.argument("src", type=str)
 def add_image(src, name="add-img"):
     """Adds a new image to the repository"""
 
     while not os.path.isfile(src):
         src = click.prompt(
-            "Invalid file! Enter the file path of your image: ", type=str
+            "Invalid file! Enter the file path of your image", type=str
         )
 
-    detail = click.prompt("(Optional) Enter a description:", type=str)
+    # detail = click.prompt("(Optional) Enter a description", type=str)
 
     confirm = ""
     while not (confirm == "Y") and not (confirm == "N"):
         confirm = click.prompt(
             "\nAdd "
             + src
-            + (' with description "' + detail + '"' if detail else "")
-            + "?",
+            # + (' with description "' + detail + '"' if detail else "")
+            + "? (Y/N)",
             type=str,
         )
 
     if confirm == "Y":
 
         files = {"file": open(src, "rb")}
-        values = {"detail": detail}
-        response = requests.post(server_url + "/gallery/add", files=files, data=values)
+        # values = {"detail": detail}
+        response = requests.post(server_url + "/gallery/add", files=files)
+        # response = requests.post(server_url + "/gallery/add", files=files, json=json.dumps(values))
 
         if response.ok:
             click.echo("Image successfully added!")
@@ -144,7 +145,7 @@ def add_image(src, name="add-img"):
         click.echo("Cancelled")
 
 
-@click.command()
+@cli.command()
 @click.argument("image_id", type=str)
 def delete_image(image_id, name="del-img"):
     """Deletes an image from the repository"""
@@ -169,11 +170,3 @@ def delete_image(image_id, name="del-img"):
             click.echo("Uh-oh, something went wrong! Please try again.")
     else:
         click.echo("Cancelled")
-
-
-cli.add_command(add_image)
-cli.add_comand(delete_image)
-cli.add_comand(show_mojees)
-cli.add_command(show_gallery)
-cli.add_comand(add_mojee)
-cli.add_comand(delete_mojee)
