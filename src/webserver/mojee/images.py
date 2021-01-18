@@ -17,8 +17,6 @@ import os
 from hashlib import md5
 from PIL import Image
 
-from werkzeug.utils import secure_filename
-
 from .vision import *
 
 bp = Blueprint("images", __name__)
@@ -47,7 +45,6 @@ def gallery():
 
 def add_pic(filename, detail):
     labels = vision_label(filename)
-    print(type(filename))
 
     cursor = g.db.cursor()
     images = cursor.execute("INSERT INTO images (detail, fname) VALUES (?, ?)", (detail, filename,))
@@ -56,7 +53,7 @@ def add_pic(filename, detail):
     for label, score in labels.items():
         g.db.execute(
             "INSERT INTO keywords_images (image_id, keyword, score) VALUES (?, ?, ?)",
-            (int(image_id), str(label), int(score),)
+            (int(image_id), str(label.lower()), int(score),)
         )
 
     g.db.commit()
@@ -66,7 +63,6 @@ def add_pic(filename, detail):
 def add_image():
     
     image_file = request.files["file"]
-    # detail = request.get_json(force=True).get("detail")
 
     try:
         names = image_file.filename.rsplit(".", 1)
@@ -130,7 +126,7 @@ def add_mojee():
     emoji = json["emoji"]
     keyword = json["keyword"]
 
-    g.db.execute("INSERT INTO mojees" " VALUES (?, ?)", (emoji, keyword))
+    g.db.execute("INSERT INTO mojees (emoji, keyword) VALUES (?, ?)", (emoji, keyword))
     g.db.commit()
 
     return jsonify({"status": "success"})
@@ -163,22 +159,21 @@ def show_mojees():
     return jsonify(mojees)
 
 
-@bp.route("/gallery/<int:image_id>/show")
+@bp.route("/gallery/<int:image_id>/")
 def show_image(image_id):
 
     ids = g.db.execute("SELECT image_id from images").fetchall()
     found = False
-    for id in ids:
-        if joint_id == id[0]:
+    for i in ids:
+        if image_id == id[0]:
             found = True
             break
 
     if found:
-        path = g.db.execute(
-            "SELECT path FROM images WHERE image_id = ?", (image_id,)
+        fname = g.db.execute(
+            "SELECT fname FROM images WHERE image_id = ?", (image_id,)
         ).fetchone()
-
-        return path
+        return send_from_directory(current_app.config["UPLOAD_DIR"], fname)
 
     else:
         abort(404, "Image with ID {0} doesn't exist.".format(image_id))
@@ -201,10 +196,3 @@ def delete_image(image_id):
 
     else:
         abort(404, "Image with ID {0} doesn't exist.".format(image_id))
-
-
-@bp.route("/gallery/<filename>")
-def return_pic(filename):
-    return send_from_directory(
-        current_app.config["UPLOAD_DIR"], secure_filename(filename)
-    )
